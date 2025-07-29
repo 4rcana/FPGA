@@ -86,7 +86,7 @@ module UART_BRAM_traffic_controller_tb;
 
         // === WRITE SEQUENCE ===
         send_uart_byte(8'h12);  // WRITE_COMMAND
-        #100;
+        #500;
         send_uart_byte(8'hAA);
         #30;
         send_uart_byte(8'hBB);
@@ -97,11 +97,21 @@ module UART_BRAM_traffic_controller_tb;
         #300;
 
         // === READ SEQUENCE ===
-        send_uart_byte(8'h11);  // READ_COMMAND
+        //send_uart_byte(8'h11);  // READ_COMMAND
         
-        repeat (6) begin
-            #20 tx_busy = ~tx_busy;
+        din = 8'h11;
+        rx_done = 1;
+        #30;
+        
+        
+        repeat (4096*2) begin
+            tx_busy = 1;
+            #120;
+            tx_busy = 0;
+            #30;
         end
+        
+        rx_done = 0;
         
         #50000
 

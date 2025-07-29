@@ -27,7 +27,8 @@ module UART(
 //    input           btnU,
     output          RsTx,
     output   [6:0]  seg,
-    output   [3:0]  an
+    output   [3:0]  an,
+    output   [1:0]  led
     );
     
     wire            baud_sample_tick;
@@ -38,6 +39,7 @@ module UART(
     wire            tx_start;
     wire    [7:0]   byte_to_send;
     wire            tx_busy;
+    wire    [11:0]  addr;
     
     UART_baud uart_baud_inst (
         .clk(clk),
@@ -66,8 +68,7 @@ module UART(
     
     seven_seg seven_seg_inst (
         .clk(clk),
-        .received_byte(received_byte),
-        .rx_done(rx_done),
+        .addr(addr),
         .clk_500(clk_500),
         .seg(seg),
         .an(an)
@@ -101,7 +102,9 @@ module UART(
         .rx_done(rx_done),
         .tx_busy(tx_busy),
         .tx_start(tx_start),
-        .dout(byte_to_send)
+        .dout(byte_to_send),
+        .addr(addr),
+        .led(led)
     );  
     
 endmodule

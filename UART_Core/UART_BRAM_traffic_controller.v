@@ -19,7 +19,7 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
+// NEED FIXING
 module UART_BRAM_traffic_controller # (
     parameter   DATA_WIDTH      =   8,
     parameter   ADDR_WIDTH      =   12,
@@ -36,7 +36,8 @@ module UART_BRAM_traffic_controller # (
     output  reg [ADDR_WIDTH-1:0]    addr,
     output  reg [DATA_WIDTH-1:0]    to_BRAM,
     output  reg                     tx_start,
-    output  reg [DATA_WIDTH-1:0]    dout
+    output  reg [DATA_WIDTH-1:0]    dout,
+    output  reg [1:0]               led
 );
     
     BRAM # (
@@ -62,18 +63,25 @@ module UART_BRAM_traffic_controller # (
     localparam  ERASE_COMMAND   =   8'h13;
     
     localparam  ASCII_ESCAPE    =   8'h1B;
-    
-    
+   
     reg [1:0]   STATE;
     reg         rx_done_d;
     reg         rx_done_posedge;
     reg         rx_done_negedge;
+    reg         tx_busy_d;
+    reg         tx_busy_negedge;
+    reg         tx_busy_negedge_d;
+    reg         en_d;
     
-    // rx_done rising edge detection
+    // edge detection and delays
     always @ (posedge clk) begin
         rx_done_d <= rx_done;
         rx_done_posedge <= rx_done & ~rx_done_d;
         rx_done_negedge <= ~rx_done & rx_done_d;
+        tx_busy_d <= tx_busy;
+        tx_busy_negedge <= ~tx_busy & tx_busy_d;
+        tx_busy_negedge_d <= tx_busy_negedge;
+        en_d <= en;
     end
     
     
@@ -88,63 +96,81 @@ module UART_BRAM_traffic_controller # (
             case (STATE)
             
                 IDLE_STATE: begin
+                led <= 2'b00;
                     if (rx_done_posedge) begin
-                        if (din == READ_COMMAND) begin
-                            STATE <= READ_STATE;
-                        end
-                        if (din == WRITE_COMMAND) begin
-                            STATE <= WRITE_STATE;
-                        end
-                        if (din == ERASE_COMMAND) begin
-                            STATE <= ERASE_STATE;
-                        end
+                        case (din)
+                        
+                            READ_COMMAND: begin
+                                STATE <= READ_STATE;
+                                en <= 1;
+                            end
+                            
+                            WRITE_COMMAND: begin
+                                STATE <= WRITE_STATE;
+                                en <= 1;
+                                write_enable <= 1;
+                            end
+                            
+                            ERASE_COMMAND: begin
+                                STATE <= ERASE_STATE;
+                                en <= 1;
+                                write_enable <= 1;
+                            end
+                            
+                        endcase
                     end else begin
+                        en <= 0;
+                        write_enable <= 0;
+                        dout <= 0;
                         addr <= 0;
-                        to_BRAM <= 0;
+                        tx_start <= 0;
                     end
                 end
-                
+                // WORKS
                 READ_STATE: begin
-                    if (addr == SIZE-1) begin
+                    led <= 2'b01;
+                    if (addr == SIZE-1 || (en_d && !from_BRAM)) begin
                         STATE <= IDLE_STATE;
                         tx_start <= 0;
-                        en <= 0;
                     end else begin
-                        if (!tx_busy) begin
+                        if (en_d) begin
                             dout <= from_BRAM;
-                            addr <= addr + 1;
-                            tx_start <= 1;
-                            en <= 1;
+                            if (tx_busy_negedge) begin
+                                addr <= addr + 1;
+                            end
+                            if (!tx_busy_d && !tx_busy_negedge && !tx_busy_negedge_d) begin
+                                tx_start <= 1;
+                            end else begin
+                                tx_start <= 0;
+                            end
                         end
-                        
                     end
                 end
-                
+                // WORKS
                 WRITE_STATE: begin
+                    led <= 2'b10;
                     if (addr == SIZE-1 || din == ASCII_ESCAPE) begin
                         STATE <= IDLE_STATE;
-                        en <= 0;
-                        write_enable <= 0;
                     end else begin
-                        if (rx_done_posedge) begin
-                            addr <= addr + 1;
-                            to_BRAM <= din;
-                            en <= 1;
-                            write_enable <= 1;
+                        if (din != WRITE_COMMAND) begin
+                            if (rx_done_posedge) begin
+                                to_BRAM <= din;
+                            end
+                            if (rx_done_negedge) begin
+                                addr <= addr + 1;
+                                to_BRAM <= 0;
+                            end
                         end
                     end
                 end
-                
+                // WORKS (although a minor bug appears and the address is incremented +1 than actually needed)
                 ERASE_STATE: begin
-                    if (addr == SIZE-1) begin
+                    led <= 2'b11;
+                    if (addr == SIZE-1 || (en_d && !from_BRAM)) begin
                         STATE <= IDLE_STATE;
-                        en <= 0;
-                        write_enable <= 0;
                     end else begin
-                        addr <= addr + 1;
                         to_BRAM <= 0;
-                        en <= 1;
-                        write_enable <= 1;
+                        addr <= addr + 1;
                     end
                 end
             

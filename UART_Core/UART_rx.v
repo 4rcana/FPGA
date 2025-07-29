@@ -50,15 +50,14 @@ module UART_rx # (
             STATE <= IDLE_STATE;
             baud_sample_tick_counter <= 0;
             bit_counter <= 0;
-            received_byte <= 0;
             rx_done <= 0;
+            received_byte <= 0;
 
         end else begin        
             if (baud_sample_tick_posedge) begin
                 case (STATE)
                 
                     IDLE_STATE: begin
-                        received_byte <= 0;
                         rx_done <= 0;
                         bit_counter <= 0;
                         baud_sample_tick_counter <= 0;
